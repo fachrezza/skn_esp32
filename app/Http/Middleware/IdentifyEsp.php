@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Models\MesinQr;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -20,6 +21,14 @@ class IdentifyEsp
         $mesin = $uid !== ''
             ? MesinQr::with('activeHistory')->where('uid_esp', $uid)->first()
             : null;
+
+        if (! $mesin) {
+            Log::warning('ESP belum terdaftar di mesin_qr.uid_esp', [
+                'uid_esp' => $uid !== '' ? $uid : null,
+                'ip' => $request->ip(),
+                'path' => $request->path(),
+            ]);
+        }
 
         $request->attributes->set('esp', $mesin);
 
