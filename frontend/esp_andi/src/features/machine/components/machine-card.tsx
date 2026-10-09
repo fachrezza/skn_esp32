@@ -6,7 +6,6 @@ import { MachineCardDTO } from '@/types/machine';
 import { useMachineCard } from '../hooks/use-machine-card';
 import { MachineStatusBadge } from './machine-status-badge';
 import { AnimatedCounter } from '@/components/reactbits/animated-counter';
-import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
@@ -32,13 +31,13 @@ export function MachineCard({
     : 'border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700';
 
   return (
-    <Card
+    <div
       onClick={() => onSelect?.(machine.no_mesin)}
-      className={`p-4 bg-white dark:bg-zinc-900 shadow-xs transition-all duration-150 cursor-pointer flex flex-col justify-between ${cardBorderClass}`}
+      className={`p-4 bg-white dark:bg-zinc-900 rounded-xl border shadow-xs transition-all duration-150 cursor-pointer flex flex-col justify-between h-full group/machine ${cardBorderClass}`}
     >
       <div className="flex flex-col gap-3">
         {/* Card Header: Code, Tonnage, Mold & Status Badge */}
-        <CardHeader className="p-0 pb-2.5 border-b border-slate-100 dark:border-zinc-800 flex flex-row items-start justify-between">
+        <div className="pb-2.5 border-b border-slate-100 dark:border-zinc-800 flex flex-row items-start justify-between">
           <div className="flex flex-col gap-0.5">
             <div className="flex items-center gap-1.5">
               <span className="text-base font-extrabold font-mono text-slate-900 dark:text-zinc-100 tracking-tight">
@@ -54,10 +53,10 @@ export function MachineCard({
           </div>
 
           <MachineStatusBadge status={machine.status} label={machine.status_label} />
-        </CardHeader>
+        </div>
 
         {/* Card Body: Active JO Details */}
-        <CardContent className="p-0 flex flex-col gap-3">
+        <div className="flex flex-col gap-3">
           {machine.running_jo ? (
             <div className="bg-slate-50 dark:bg-zinc-800/70 rounded-lg p-2.5 border border-slate-200 dark:border-zinc-700 flex flex-col gap-1">
               <div className="flex items-center justify-between text-[11px] font-mono">
@@ -126,11 +125,11 @@ export function MachineCard({
               />
             </div>
           </div>
-        </CardContent>
+        </div>
       </div>
 
       {/* Card Footer: Metadata & Action Button */}
-      <CardFooter className="p-0 pt-3 mt-2 border-t border-slate-100 dark:border-zinc-800 flex flex-col gap-2">
+      <div className="mt-3.5 pt-3 border-t border-slate-100 dark:border-zinc-800 flex flex-col gap-2.5">
         <div className="flex items-center justify-between text-[11px] font-mono text-slate-500 dark:text-zinc-400 w-full">
           <span className="flex items-center gap-1 font-medium">
             <Clock className="size-3 text-slate-400" />
@@ -144,22 +143,20 @@ export function MachineCard({
 
         <Button
           type="button"
-          size="sm"
-          variant={machine.status === 'RUSAK' ? 'destructive' : 'outline'}
           onClick={(e) => {
             e.stopPropagation();
             onActionClick?.(machine);
           }}
-          className={`w-full font-bold text-xs tracking-wide ${
+          className={`w-full h-8 text-xs font-bold tracking-wider cursor-pointer transition-all duration-150 flex items-center justify-center gap-1.5 rounded-lg ${
             machine.status === 'RUSAK'
-              ? 'bg-rose-600 hover:bg-rose-700 text-white'
-              : 'bg-white hover:bg-slate-50 dark:bg-zinc-800 dark:hover:bg-zinc-700 border-slate-300 dark:border-zinc-700 text-slate-800 dark:text-zinc-200'
+              ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-xs'
+              : 'bg-slate-50 hover:bg-slate-100 dark:bg-zinc-800 dark:hover:bg-zinc-700 border border-slate-200 dark:border-zinc-700 text-slate-800 dark:text-zinc-200 shadow-2xs hover:border-slate-300'
           }`}
         >
           <span>{machine.status === 'RUSAK' ? 'CATAT KERUSAKAN' : 'DETAIL TELEMETRI'}</span>
-          <ArrowRight data-icon="inline-end" />
+          <ArrowRight className="size-3.5" />
         </Button>
-      </CardFooter>
-    </Card>
+      </div>
+    </div>
   );
 }
