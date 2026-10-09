@@ -1,0 +1,2 @@
+# Services Layer
+Handles database queries, API integrations, and legacy DTO transformations.
