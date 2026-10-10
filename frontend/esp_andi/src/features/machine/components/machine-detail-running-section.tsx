@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { LaravelMesinResource } from '@/types/machine';
 import { Square } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useRealtimeClock } from '../hooks/use-clock';
 
 interface MachineDetailRunningSectionProps {
   activeHistory: NonNullable<LaravelMesinResource['active_history']>;
@@ -38,40 +39,28 @@ export function MachineDetailRunningSection({
   const displayGood = goodInput !== '' ? goodInput : String(activeHistory.good ?? 0);
   const displayNg = ngInput !== '' ? ngInput : String(activeHistory.ng ?? 0);
 
-  // Clock state yang berdetik setiap detik
-  const [currentTimeMs, setCurrentTimeMs] = useState<number>(() => Date.now());
+  // Global realtime clock ticker
+  const currentSec = useRealtimeClock();
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTimeMs(Date.now());
-    }, 1000);
+  // 1. Tentukan start timestamp (detik) dari waktu nyala alat yang paling akurat
+  const initialSec =
+    activeHistory.durasi_berjalan_sec && activeHistory.durasi_berjalan_sec > 0
+      ? activeHistory.durasi_berjalan_sec
+      : timerSec && timerSec > 0
+      ? timerSec
+      : 0;
 
-    return () => clearInterval(interval);
-  }, []);
-
-  // 1. Tentukan start epoch (ms) dari waktu nyala alat yang paling akurat
-  let startEpochMs: number = currentTimeMs;
+  let startSec: number = currentSec > 0 ? currentSec - initialSec : 0;
   if (activeHistory.mesin_start) {
-    const parsed = new Date(activeHistory.mesin_start).getTime();
-    if (!isNaN(parsed) && parsed > 0) startEpochMs = parsed;
+    const parsed = Math.floor(new Date(activeHistory.mesin_start).getTime() / 1000);
+    if (!isNaN(parsed) && parsed > 0) startSec = parsed;
   } else if (updatedAt) {
-    const parsed = new Date(updatedAt).getTime();
-    if (!isNaN(parsed) && parsed > 0) startEpochMs = parsed;
-  } else {
-    const initialSec =
-      activeHistory.durasi_berjalan_sec && activeHistory.durasi_berjalan_sec > 0
-        ? activeHistory.durasi_berjalan_sec
-        : timerSec && timerSec > 0
-        ? timerSec
-        : 0;
-
-    if (initialSec > 0) {
-      startEpochMs = currentTimeMs - initialSec * 1000;
-    }
+    const parsed = Math.floor(new Date(updatedAt).getTime() / 1000);
+    if (!isNaN(parsed) && parsed > 0) startSec = parsed;
   }
 
   // Hitung durasi realtime berjalan
-  const elapsedSeconds = Math.max(0, Math.floor((currentTimeMs - startEpochMs) / 1000));
+  const elapsedSeconds = currentSec > 0 ? Math.max(0, currentSec - startSec) : initialSec;
   const hours = Math.floor(elapsedSeconds / 3600);
   const minutes = Math.floor((elapsedSeconds % 3600) / 60);
   const seconds = Math.floor(elapsedSeconds % 60);
@@ -82,7 +71,7 @@ export function MachineDetailRunningSection({
     const dateSource =
       activeHistory.mesin_start ||
       updatedAt ||
-      (startEpochMs ? new Date(startEpochMs).toISOString() : null);
+      (startSec > 0 ? new Date(startSec * 1000).toISOString() : null);
 
     if (!dateSource) return '-';
     try {

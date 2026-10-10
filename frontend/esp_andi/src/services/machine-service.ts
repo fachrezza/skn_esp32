@@ -16,6 +16,7 @@ export const INITIAL_MACHINES: MachineCardDTO[] = [
     uid_esp: 'ESP-8266-A1',
     cycle_time: 24.5,
     is_selected: true,
+    timer_sec: 5045,
     running_jo: {
       no_jo: 'JO-2026-0891',
       prioritas: 1,
@@ -38,6 +39,7 @@ export const INITIAL_MACHINES: MachineCardDTO[] = [
     status_label: 'BERJALAN',
     uid_esp: 'ESP-8266-A2',
     cycle_time: 18.2,
+    timer_sec: 7832,
     running_jo: {
       no_jo: 'JO-2026-0894',
       prioritas: 2,
@@ -58,6 +60,7 @@ export const INITIAL_MACHINES: MachineCardDTO[] = [
     status_label: 'SIAP',
     uid_esp: 'ESP-8266-A3',
     cycle_time: 0,
+    timer_sec: 0,
     running_jo: {
       no_jo: 'JO-2026-0899',
       prioritas: 1,
@@ -81,6 +84,7 @@ export const INITIAL_MACHINES: MachineCardDTO[] = [
     cycle_time: 0,
     alert_message: 'SUHU SENSOR NOZZLE OVERHEAT',
     downtime_minutes: 42,
+    timer_sec: 2520,
     running_jo: {
       no_jo: 'JO-2026-0887',
       prioritas: 1,
@@ -104,6 +108,7 @@ export const INITIAL_MACHINES: MachineCardDTO[] = [
     cycle_time: 0,
     est_ready: '14:30 WIB',
     setup_progress: 75.0,
+    timer_sec: 1800,
     running_jo: {
       no_jo: 'JO-2026-0895',
       prioritas: 2,
@@ -125,6 +130,7 @@ export const INITIAL_MACHINES: MachineCardDTO[] = [
     status_label: 'BERJALAN',
     uid_esp: 'ESP-8266-A6',
     cycle_time: 21.4,
+    timer_sec: 11240,
     running_jo: {
       no_jo: 'JO-2026-0902',
       prioritas: 2,
@@ -145,6 +151,7 @@ export const INITIAL_MACHINES: MachineCardDTO[] = [
     status_label: 'BERJALAN',
     uid_esp: 'ESP-8266-A7',
     cycle_time: 12.1,
+    timer_sec: 9480,
     running_jo: {
       no_jo: 'JO-2026-0905',
       prioritas: 1,
@@ -166,6 +173,7 @@ export const INITIAL_MACHINES: MachineCardDTO[] = [
     status_label: 'MATI',
     uid_esp: 'ESP-8266-A8',
     cycle_time: 0,
+    timer_sec: 0,
     running_jo: null,
     notes: 'Siaga untuk Mulai Shift 3',
   },

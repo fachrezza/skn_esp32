@@ -1,5 +1,9 @@
 import { useMemo } from 'react';
 import { MachineCardDTO, MachineStatus } from '@/types/machine';
+import { useRealtimeClock } from './use-clock';
+
+// Map untuk mengunci start timestamp stabil per mesin
+const machineStartAnchorMap = new Map<string, number>();
 
 export interface MachineCardVisualTokens {
   badgeBg: string;
@@ -49,12 +53,50 @@ const STATUS_TOKENS: Record<MachineStatus, MachineCardVisualTokens> = {
 
 /**
  * Custom hook to prepare machine card view model
- * Isolates math, formatting, and semantic styling from dumb visual components
+ * Isolates math, formatting, realtime timer, and semantic styling from dumb visual components
  */
 export function useMachineCard(machine: MachineCardDTO) {
   const visualTokens = useMemo(() => {
     return STATUS_TOKENS[machine.status] ?? STATUS_TOKENS.OFF;
   }, [machine.status]);
+
+  const currentSec = useRealtimeClock();
+  const initialTimerSec = machine.timer_sec && machine.timer_sec > 0 ? machine.timer_sec : 0;
+
+  // Realtime runtime timer formatted as HH:mm:ss
+  const formattedRuntime = useMemo(() => {
+    const isRunning = machine.status === 'RUNNING' || machine.status_label === 'BERJALAN';
+    if (!isRunning && initialTimerSec <= 0) {
+      machineStartAnchorMap.delete(machine.no_mesin);
+      return '00:00:00';
+    }
+
+    if (currentSec === 0) {
+      // Prerender / SSR fallback
+      const hours = Math.floor(initialTimerSec / 3600);
+      const minutes = Math.floor((initialTimerSec % 3600) / 60);
+      const seconds = Math.floor(initialTimerSec % 60);
+      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    let startSec: number;
+    if (machine.started_at) {
+      const parsed = Math.floor(new Date(machine.started_at).getTime() / 1000);
+      startSec = !isNaN(parsed) && parsed > 0 ? parsed : currentSec - initialTimerSec;
+    } else {
+      if (!machineStartAnchorMap.has(machine.no_mesin)) {
+        machineStartAnchorMap.set(machine.no_mesin, currentSec - initialTimerSec);
+      }
+      startSec = machineStartAnchorMap.get(machine.no_mesin)!;
+    }
+
+    const elapsedSec = Math.max(0, currentSec - startSec);
+    const hours = Math.floor(elapsedSec / 3600);
+    const minutes = Math.floor((elapsedSec % 3600) / 60);
+    const seconds = Math.floor(elapsedSec % 60);
+
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }, [currentSec, initialTimerSec, machine.no_mesin, machine.started_at, machine.status, machine.status_label]);
 
   const joMetrics = useMemo(() => {
     if (!machine.running_jo) {
@@ -91,5 +133,6 @@ export function useMachineCard(machine: MachineCardDTO) {
     visualTokens,
     joMetrics,
     formattedCycleTime,
+    formattedRuntime,
   };
 }

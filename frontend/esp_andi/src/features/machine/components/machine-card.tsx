@@ -22,7 +22,7 @@ export function MachineCard({
   onSelect,
   onActionClick,
 }: MachineCardProps) {
-  const { joMetrics, formattedCycleTime } = useMachineCard(machine);
+  const { joMetrics, formattedCycleTime, formattedRuntime } = useMachineCard(machine);
 
   const cardBorderClass = isSelected
     ? 'ring-2 ring-sky-500 border-sky-500 shadow-md'
@@ -63,8 +63,26 @@ export function MachineCard({
                 <span className="font-bold text-sky-700 dark:text-sky-400">
                   {machine.running_jo.no_jo}
                 </span>
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
-                  PRIORITAS {machine.running_jo.prioritas}
+                <span
+                  className={`inline-flex items-center gap-1 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border shadow-2xs ${
+                    machine.status === 'RUSAK'
+                      ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border-rose-300 dark:border-rose-800'
+                      : machine.status === 'RUNNING' || machine.status_label === 'BERJALAN'
+                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
+                      : 'bg-slate-100 text-slate-700 dark:bg-zinc-800 dark:text-zinc-300 border-slate-200 dark:border-zinc-700'
+                  }`}
+                  title="Timer Mesin Menyala (Realtime)"
+                >
+                  <span
+                    className={`size-1.5 rounded-full ${
+                      machine.status === 'RUSAK'
+                        ? 'bg-rose-500'
+                        : machine.status === 'RUNNING' || machine.status_label === 'BERJALAN'
+                        ? 'bg-emerald-500 animate-pulse'
+                        : 'bg-slate-400'
+                    }`}
+                  />
+                  <span>{formattedRuntime}</span>
                 </span>
               </div>
               <p className="text-xs font-bold text-slate-800 dark:text-zinc-200 truncate">
