@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LaravelMesinResource } from '@/types/machine';
 import { Square } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 interface MachineDetailRunningSectionProps {
   activeHistory: NonNullable<LaravelMesinResource['active_history']>;
   timerSec?: number;
+  updatedAt?: string | null;
   isSubmitting: boolean;
   onStopMesin: (payload: {
     good: number;
@@ -24,34 +25,78 @@ interface MachineDetailRunningSectionProps {
 export function MachineDetailRunningSection({
   activeHistory,
   timerSec,
+  updatedAt,
   isSubmitting,
   onStopMesin,
 }: MachineDetailRunningSectionProps) {
-  const [good, setGood] = useState<number>(activeHistory.good ?? 0);
-  const [ng, setNg] = useState<number>(activeHistory.ng ?? 0);
+  const [goodInput, setGoodInput] = useState<string>('');
+  const [ngInput, setNgInput] = useState<string>('');
   const [remark, setRemark] = useState<string>('');
   const [selectedFinishJos, setSelectedFinishJos] = useState<string[]>([]);
 
-  // Format durasi HH:mm:ss
-  const totalSeconds = activeHistory.durasi_berjalan_sec ?? timerSec ?? 0;
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = Math.floor(totalSeconds % 60);
+  // Tampilkan data live dari backend jika belum diketik user
+  const displayGood = goodInput !== '' ? goodInput : String(activeHistory.good ?? 0);
+  const displayNg = ngInput !== '' ? ngInput : String(activeHistory.ng ?? 0);
+
+  // Clock state yang berdetik setiap detik
+  const [currentTimeMs, setCurrentTimeMs] = useState<number>(() => Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTimeMs(Date.now());
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // 1. Tentukan start epoch (ms) dari waktu nyala alat yang paling akurat
+  let startEpochMs: number = currentTimeMs;
+  if (activeHistory.mesin_start) {
+    const parsed = new Date(activeHistory.mesin_start).getTime();
+    if (!isNaN(parsed) && parsed > 0) startEpochMs = parsed;
+  } else if (updatedAt) {
+    const parsed = new Date(updatedAt).getTime();
+    if (!isNaN(parsed) && parsed > 0) startEpochMs = parsed;
+  } else {
+    const initialSec =
+      activeHistory.durasi_berjalan_sec && activeHistory.durasi_berjalan_sec > 0
+        ? activeHistory.durasi_berjalan_sec
+        : timerSec && timerSec > 0
+        ? timerSec
+        : 0;
+
+    if (initialSec > 0) {
+      startEpochMs = currentTimeMs - initialSec * 1000;
+    }
+  }
+
+  // Hitung durasi realtime berjalan
+  const elapsedSeconds = Math.max(0, Math.floor((currentTimeMs - startEpochMs) / 1000));
+  const hours = Math.floor(elapsedSeconds / 3600);
+  const minutes = Math.floor((elapsedSeconds % 3600) / 60);
+  const seconds = Math.floor(elapsedSeconds % 60);
   const formattedDuration = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 
-  // Format tanggal mulai
-  const formatMulai = (rawDate?: string | null) => {
-    if (!rawDate) return '-';
+  // Format tanggal & waktu mulai
+  const formatMulai = () => {
+    const dateSource =
+      activeHistory.mesin_start ||
+      updatedAt ||
+      (startEpochMs ? new Date(startEpochMs).toISOString() : null);
+
+    if (!dateSource) return '-';
     try {
-      const d = new Date(rawDate);
+      const d = new Date(dateSource);
+      if (isNaN(d.getTime())) return '-';
       const day = String(d.getDate()).padStart(2, '0');
       const month = String(d.getMonth() + 1).padStart(2, '0');
       const year = String(d.getFullYear()).slice(-2);
-      const hours = String(d.getHours()).padStart(2, '0');
+      const hrs = String(d.getHours()).padStart(2, '0');
       const mins = String(d.getMinutes()).padStart(2, '0');
-      return `${day}/${month}/${year}, ${hours}.${mins}`;
+      const secs = String(d.getSeconds()).padStart(2, '0');
+      return `${day}/${month}/${year}, ${hrs}:${mins}:${secs}`;
     } catch {
-      return rawDate;
+      return String(dateSource);
     }
   };
 
@@ -74,8 +119,8 @@ export function MachineDetailRunningSection({
   const handleSubmitStop = async (e: React.FormEvent) => {
     e.preventDefault();
     await onStopMesin({
-      good: Number(good) || 0,
-      ng: Number(ng) || 0,
+      good: Number(displayGood) || 0,
+      ng: Number(displayNg) || 0,
       remark: remark.trim(),
       jo_selesai: selectedFinishJos,
     });
@@ -119,12 +164,18 @@ export function MachineDetailRunningSection({
 
           <div className="text-slate-500 dark:text-zinc-400 font-medium">Mulai</div>
           <div className="font-bold text-slate-900 dark:text-zinc-100">
-            {formatMulai(activeHistory.mesin_start)}
+            {formatMulai()}
           </div>
 
           <div className="text-slate-500 dark:text-zinc-400 font-medium">Durasi</div>
-          <div className="font-bold text-slate-900 dark:text-zinc-100">
-            {formattedDuration}
+          <div className="font-bold text-slate-900 dark:text-zinc-100 flex items-center gap-2">
+            <span className="font-mono text-sm font-extrabold text-sky-700 dark:text-sky-400 tracking-wider">
+              {formattedDuration}
+            </span>
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+              <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              REALTIME
+            </span>
           </div>
         </div>
 
@@ -139,8 +190,8 @@ export function MachineDetailRunningSection({
                 id="input-good"
                 type="number"
                 min="0"
-                value={good}
-                onChange={(e) => setGood(Number(e.target.value))}
+                value={displayGood}
+                onChange={(e) => setGoodInput(e.target.value)}
                 className="font-mono font-bold text-emerald-700 dark:text-emerald-300 bg-white dark:bg-zinc-800 border-slate-300 dark:border-zinc-700"
               />
             </div>
@@ -153,8 +204,8 @@ export function MachineDetailRunningSection({
                 id="input-ng"
                 type="number"
                 min="0"
-                value={ng}
-                onChange={(e) => setNg(Number(e.target.value))}
+                value={displayNg}
+                onChange={(e) => setNgInput(e.target.value)}
                 className="font-mono font-bold text-rose-700 dark:text-rose-300 bg-white dark:bg-zinc-800 border-slate-300 dark:border-zinc-700"
               />
             </div>

@@ -82,9 +82,11 @@ export function useMachineDetail(noMesin: string | null) {
     };
 
     fetchData();
+    const pollInterval = setInterval(fetchData, 5000);
 
     return () => {
       isCancelled = true;
+      clearInterval(pollInterval);
     };
   }, [noMesin]);
 
