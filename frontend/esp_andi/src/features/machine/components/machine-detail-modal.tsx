@@ -48,7 +48,31 @@ export function MachineDetailModal({ isOpen, onClose, machine }: MachineDetailMo
   if (!machine) return null;
 
   const isMachineRunning =
-    machine.status === 'RUNNING' || mesinResource?.is_running || Boolean(mesinResource?.active_history);
+    machine.status === 'RUNNING' ||
+    machine.status_label === 'BERJALAN' ||
+    Boolean(mesinResource?.is_running) ||
+    mesinResource?.status_mesin === 'RUNNING' ||
+    Boolean(mesinResource?.active_history);
+
+  // Waktu mulai yang akurat dari riwayat aktif atau updated_at (saat ESP32 nyala)
+  const rawStartTime =
+    mesinResource?.active_history?.mesin_start ||
+    mesinResource?.updated_at ||
+    null;
+
+  const initialTimerSec =
+    (mesinResource?.active_history?.durasi_berjalan_sec && mesinResource.active_history.durasi_berjalan_sec > 0)
+      ? mesinResource.active_history.durasi_berjalan_sec
+      : (mesinResource?.timer_sec && mesinResource.timer_sec > 0)
+      ? mesinResource.timer_sec
+      : 0;
+
+  const runningJoCodes =
+    Array.isArray(mesinResource?.running_jo) && mesinResource.running_jo.length > 0
+      ? mesinResource.running_jo
+      : machine.running_jo
+      ? [machine.running_jo.no_jo]
+      : [];
 
   const activeHistory =
     mesinResource?.active_history ||
@@ -63,11 +87,11 @@ export function MachineDetailModal({ isOpen, onClose, machine }: MachineDetailMo
           operator2: null,
           nama_teknisi: null,
           nama_setup: null,
-          no_jo: machine.running_jo ? [machine.running_jo.no_jo] : [],
-          mesin_start: null,
+          no_jo: runningJoCodes,
+          mesin_start: rawStartTime,
           mesin_stop: null,
           mesin_durasi: null,
-          durasi_berjalan_sec: 0,
+          durasi_berjalan_sec: initialTimerSec,
           good: machine.running_jo?.qty_good ?? 0,
           ng: machine.running_jo?.qty_ng ?? 0,
           sisa_jo: machine.running_jo?.sisa_jo ?? 0,
@@ -153,7 +177,8 @@ export function MachineDetailModal({ isOpen, onClose, machine }: MachineDetailMo
               {activeHistory ? (
                 <MachineDetailRunningSection
                   activeHistory={activeHistory}
-                  timerSec={mesinResource?.timer_sec}
+                  timerSec={mesinResource?.timer_sec ?? initialTimerSec}
+                  updatedAt={mesinResource?.updated_at ?? rawStartTime}
                   isSubmitting={isSubmitting}
                   onStopMesin={handleStopMesin}
                 />

@@ -64,6 +64,8 @@ export interface MachineCardDTO {
   uid_esp: string;
   cycle_time: number; // in seconds
   is_selected?: boolean;
+  timer_sec?: number | null;
+  started_at?: string | null;
 
   // Active Job Order
   running_jo?: {

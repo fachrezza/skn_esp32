@@ -252,6 +252,8 @@ export function transformLaravelMesinToCardDTO(
     alert_message: status === 'RUSAK' ? resource.note_mesin || 'PERINGATAN DOWNTIME TERDETEKSI' : null,
     downtime_minutes: downtimeMinutes,
     notes: resource.note_mesin,
+    timer_sec: resource.timer_sec ?? (resource.active_history?.durasi_berjalan_sec ?? 0),
+    started_at: resource.active_history?.mesin_start || resource.updated_at || null,
   };
 }
 
