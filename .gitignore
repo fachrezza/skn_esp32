@@ -30,3 +30,7 @@ Thumbs.db
 **/node_modules/
 **/.next/
 **/.env*.local
+
+# Konfigurasi AI lokal
+/.claude/skills
+/CLAUDE.md
