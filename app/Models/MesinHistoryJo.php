@@ -12,7 +12,10 @@ class MesinHistoryJo extends Model
 {
     protected $table = 'mesin_history_jo';
 
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'id_history', 'no_mesin', 'no_jo', 'produk', 'qtyjo', 'good', 'ng', 'sisa_jo', 'runner',
+        'no_pr', 'converted_good', 'converted_ng',
+    ];
 
     protected function casts(): array
     {

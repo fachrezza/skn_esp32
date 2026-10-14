@@ -33,6 +33,9 @@ Route::prefix('mesin')->name('mesin.')->controller(KontrolMesinController::class
 Route::prefix('mesin/{mesin}')->name('mesin.')->group(function () {
     Route::post('start', [ProduksiController::class, 'start'])->name('start');
     Route::post('stop', [ProduksiController::class, 'stop'])->name('stop');
+    Route::post('siapkan', [ProduksiController::class, 'siapkan'])->name('siapkan');
+    Route::delete('siapkan', [ProduksiController::class, 'batalSiapkan'])->name('siapkan.batal');
+    Route::post('ganti-operator', [ProduksiController::class, 'gantiOperator'])->name('ganti-operator');
     Route::post('jo', [MappingJoController::class, 'store'])->name('jo.store');
     Route::put('jo/{noJo}', [MappingJoController::class, 'update'])->name('jo.update');
     Route::delete('jo/{noJo}', [MappingJoController::class, 'destroy'])->name('jo.destroy');

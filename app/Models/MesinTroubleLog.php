@@ -16,7 +16,7 @@ class MesinTroubleLog extends Model
 
     protected $primaryKey = 'id_log';
 
-    protected $guarded = ['id_log'];
+    protected $fillable = ['id_history', 'kduser', 'kditem', 'nmitem', 'jenis', 'keterangan'];
 
     public function history(): BelongsTo
     {

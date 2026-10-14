@@ -9,12 +9,14 @@
             --bg: #f3f4f6; --panel: #ffffff; --text: #111827; --muted: #6b7280; --border: #e5e7eb;
             --accent: #2563eb; --run: #16a34a; --run-bg: #dcfce7; --ready: #2563eb; --ready-bg: #dbeafe;
             --maint: #d97706; --maint-bg: #fef3c7; --off: #6b7280; --off-bg: #f3f4f6; --rusak: #dc2626; --rusak-bg: #fee2e2;
+            --setter: #9333ea; --setter-bg: #f3e8ff;
         }
         @media (prefers-color-scheme: dark) {
             :root {
                 --bg: #0f172a; --panel: #1e293b; --text: #f1f5f9; --muted: #94a3b8; --border: #334155;
                 --accent: #60a5fa; --run: #4ade80; --run-bg: #14532d; --ready: #93c5fd; --ready-bg: #1e3a8a;
                 --maint: #fbbf24; --maint-bg: #78350f; --off: #cbd5e1; --off-bg: #334155; --rusak: #fca5a5; --rusak-bg: #7f1d1d;
+                --setter: #d8b4fe; --setter-bg: #581c87;
             }
         }
         * { box-sizing: border-box; }
@@ -38,6 +40,10 @@
         .card:hover { border-color: var(--accent); }
         .card.s-RUNNING { border-left-color: var(--run); }
         .card.s-READY { border-left-color: var(--ready); }
+        .card.s-PRODUKSI { border-left-color: var(--run); }
+        .card.s-MOULD { border-left-color: var(--maint); }
+        .card.s-SETTER { border-left-color: var(--setter); }
+        .card.s-SIAP { border-left-color: var(--run); border-left-style: dashed; }
         .card.s-MAINTANCE { border-left-color: var(--maint); }
         .card.s-RUSAK { border-left-color: var(--rusak); }
         .card-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
@@ -47,6 +53,10 @@
         .badge { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
         .b-RUNNING { background: var(--run-bg); color: var(--run); }
         .b-READY { background: var(--ready-bg); color: var(--ready); }
+        .b-PRODUKSI { background: var(--run-bg); color: var(--run); }
+        .b-MOULD { background: var(--maint-bg); color: var(--maint); }
+        .b-SETTER { background: var(--setter-bg); color: var(--setter); }
+        .b-SIAP { background: var(--run-bg); color: var(--run); outline: 1px dashed var(--run); }
         .b-MAINTANCE { background: var(--maint-bg); color: var(--maint); }
         .b-OFF { background: var(--off-bg); color: var(--off); }
         .b-RUSAK { background: var(--rusak-bg); color: var(--rusak); }
@@ -80,6 +90,7 @@
         .msg { font-size: 13px; margin-top: 10px; padding: 8px 10px; border-radius: 6px; display: none; }
         .msg.err { display: block; background: var(--rusak-bg); color: var(--rusak); }
         .msg.ok { display: block; background: var(--run-bg); color: var(--run); }
+        .hint { font-size: 13px; padding: 8px 10px; border-radius: 6px; background: var(--ready-bg); color: var(--ready); margin-bottom: 12px; }
         .empty { padding: 32px; text-align: center; color: var(--muted); }
         @media (max-width: 480px) { .form-grid { grid-template-columns: 1fr; } .toolbar input { max-width: none; } }
     </style>
@@ -121,7 +132,9 @@
 
 <script>
     const API = @json(url('/api'));
-    const STATUS_NYALA = 'RUNNING';
+    // Sama dengan listStatus di test.ino: PRODUKSI (OPERATOR), MOULD (TEKNISI), SETTER (SETUP)
+    const STATUS_SESI = ['PRODUKSI', 'MOULD', 'SETTER'];
+    const sedangNyala = (m) => STATUS_SESI.includes(m.status_tampilan);
     const state = { mesin: [], fetchedAt: Date.now(), filter: 'semua', cari: '', aktif: null, jo: [] };
 
     const $ = (sel) => document.querySelector(sel);
@@ -133,6 +146,11 @@
     };
     const jamLokal = (utc) => utc ? new Date(utc.replace(' ', 'T') + 'Z').toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' }) : '-';
     const operatorDari = (h) => h ? [h.operator1, h.operator2, h.nama_teknisi, h.nama_setup].filter(Boolean).join(', ') : '';
+    // READY tanpa operator tidak bisa RUNNING; READY + operator disiapkan = "SIAP RUNNING"
+    // OPERATOR = produksi (RUNNING); TEKNISI = mold dan SETUP = setter berjalan dengan status READY
+    const TAHAP = { OPERATOR: 'PRODUKSI', TEKNISI: 'MOULD', SETUP: 'SETTER' };
+    const kodeStatus = (m) => m.siap_running ? 'SIAP' : m.status_tampilan;
+    const labelStatus = (m) => m.siap_running ? `READY · siap ${TAHAP[m.pending_history?.jenis_operator] || 'PRODUKSI'}` : m.status_tampilan;
 
     async function api(path, method = 'GET', body = null) {
         const res = await fetch(API + path, {
@@ -162,6 +180,10 @@
             render();
             if (state.aktif && $('#drawer').open) {
                 renderJudul();
+                // Mis. RUNNING ditekan di ESP: ganti panel tanpa menghapus isian form bila tidak berubah
+                if (mesinAktif() && kunciPanel(mesinAktif()) !== state.kunciPanel) {
+                    renderRun();
+                }
             }
         } catch (e) {
             $('#last-update').textContent = 'Gagal memuat: ' + e.message;
@@ -173,32 +195,35 @@
     }
 
     function render() {
-        const hitung = (s) => state.mesin.filter((m) => m.status_mesin === s).length;
-        const nyala = hitung(STATUS_NYALA);
+        const hitung = (s) => state.mesin.filter((m) => m.status_tampilan === s).length;
+        const nyala = state.mesin.filter(sedangNyala).length;
         $('#summary').innerHTML = [
             ['Total mesin', state.mesin.length],
-            ['Nyala', nyala],
-            ['Tidak nyala', state.mesin.length - nyala],
+            ['Produksi', hitung('PRODUKSI')],
+            ['Mould', hitung('MOULD')],
+            ['Setter', hitung('SETTER')],
             ['Ready', hitung('READY')],
+            ['Siap running', state.mesin.filter((m) => m.siap_running).length],
             ['Maintenance', hitung('MAINTANCE')],
             ['Off / Rusak', hitung('OFF') + hitung('RUSAK')],
         ].map(([k, v]) => `<div class="stat"><span class="muted">${k}</span><b>${v}</b></div>`).join('');
 
         const q = state.cari.toLowerCase();
         const list = state.mesin.filter((m) => {
-            if (state.filter === 'nyala' && m.status_mesin !== STATUS_NYALA) return false;
-            if (state.filter === 'mati' && m.status_mesin === STATUS_NYALA) return false;
+            if (state.filter === 'nyala' && !sedangNyala(m)) return false;
+            if (state.filter === 'mati' && sedangNyala(m)) return false;
             return !q || m.no_mesin.toLowerCase().includes(q) || (m.nama_mesin || '').toLowerCase().includes(q);
         });
 
         $('#grid').innerHTML = list.length ? list.map((m) => {
-            const h = m.active_history;
-            return `<button type="button" class="card s-${esc(m.status_mesin)}" data-no="${esc(m.no_mesin)}">
-                <div class="card-top"><h3>${esc(m.no_mesin)}</h3><span class="badge b-${esc(m.status_mesin)}">${esc(m.status_mesin)}</span></div>
+            const h = m.active_history || m.pending_history;
+            const jo = m.running_jo.length ? m.running_jo : (m.pending_history?.no_jo || []);
+            return `<button type="button" class="card s-${esc(kodeStatus(m))}" data-no="${esc(m.no_mesin)}">
+                <div class="card-top"><h3>${esc(m.no_mesin)}</h3><span class="badge b-${esc(kodeStatus(m))}">${esc(labelStatus(m))}</span></div>
                 <div class="line muted">${esc(m.nama_mesin)}${m.uid_esp ? ' · ESP ' + esc(m.uid_esp) : ''}</div>
-                <div class="line">👤 ${esc(operatorDari(h) || '-')}</div>
-                <div class="line">📄 ${esc(m.running_jo.join(', ') || '-')}</div>
-                <div class="line muted">${m.status_mesin === STATUS_NYALA ? 'Berjalan' : 'Status selama'} <span class="timer" data-sejak="${Date.now() / 1000 - m.timer_sec}">${durasi(m.timer_sec)}</span></div>
+                <div class="line">👤 ${esc(operatorDari(h) || 'Belum ada operator')}</div>
+                <div class="line">📄 ${esc(jo.join(', ') || '-')}</div>
+                <div class="line muted">${sedangNyala(m) ? 'Berjalan' : 'Status selama'} <span class="timer" data-sejak="${Date.now() / 1000 - m.timer_sec}">${durasi(m.timer_sec)}</span></div>
             </button>`;
         }).join('') : '<div class="empty">Tidak ada mesin yang cocok.</div>';
     }
@@ -223,7 +248,7 @@
         const m = mesinAktif();
         if (!m) return;
         $('#drawer-title').innerHTML = `<h2>Mesin ${esc(m.no_mesin)}</h2>
-            <span class="badge b-${esc(m.status_mesin)}">${esc(m.status_mesin)}</span>
+            <span class="badge b-${esc(kodeStatus(m))}">${esc(labelStatus(m))}</span>
             <span class="muted"> ${esc(m.nama_mesin)}${m.uid_esp ? ' · ESP ' + esc(m.uid_esp) : ' · ESP belum terpasang'}</span>`;
     }
 
@@ -243,72 +268,95 @@
         return jam >= 7 && jam < 15 ? '1' : (jam >= 15 && jam < 23 ? '2' : '3');
     }
 
+    const PILIHAN_JENIS = [
+        ['OPERATOR', 'Operator (PRODUKSI)'],
+        ['TEKNISI', 'Teknisi (MOULD)'],
+        ['SETUP', 'Setup (SETTER)'],
+    ];
+
+    function opsiJenis(terpilih = 'OPERATOR') {
+        return PILIHAN_JENIS.map(([v, t]) => `<option value="${v}" ${v === terpilih ? 'selected' : ''}>${t}</option>`).join('');
+    }
+
+    function opsiShift(terpilih = shiftSekarang()) {
+        return ['1', '2', '3'].map((s) => `<option ${s === terpilih ? 'selected' : ''}>${s}</option>`).join('');
+    }
+
+    // Dashboard hanya mengatur SIAPA yang memegang mesin (satu orang aktif). Status dipilih dari ESP32.
+    // JO hanya untuk OPERATOR (produksi); TEKNISI (mould) & SETUP (setter) tanpa JO.
+    function formOperator(m) {
+        const sekarang = m.active_history || m.pending_history;
+        const jenis = sekarang?.jenis_operator || 'OPERATOR';
+        const joSekarang = sekarang?.jenis_operator === 'OPERATOR' ? sekarang.no_jo : [];
+        const joBisa = state.jo.filter((j) => j.status_jo !== 'FINISH' && (j.status_jo !== 'RUNNING' || joSekarang.includes(j.no_jo)));
+        const keterangan = m.active_history
+            ? 'Jenis sama (mis. ganti shift): sesi berlanjut dengan orang baru. Jenis beda: sesi sekarang dihentikan, orang baru menunggu dipilih statusnya di ESP.'
+            : 'Orang ini menunggu dipilih statusnya di ESP (PRODUKSI / MOULD / SETTER sesuai jenis).';
+
+        return `<h4 style="margin-top:16px">${sekarang ? 'Ganti operator' : 'Atur operator'}</h4>
+            <form id="form-operator" class="form-grid">
+                <div class="full hint" style="margin:0">${keterangan} Setelah disimpan, pilih <b>[ Refresh Data ]</b> di ESP.</div>
+                <div><label>Jenis</label><select name="jenis_operator" id="pilih-jenis">${opsiJenis(jenis)}</select></div>
+                <div><label>Shift</label><select name="shift">${opsiShift()}</select></div>
+                <div><label>Nama *</label><input name="operator1" list="dl-operator" required autocomplete="off"></div>
+                <div class="khusus-produksi"><label>Operator 2 (opsional)</label><input name="operator2" list="dl-operator" autocomplete="off"></div>
+                <div class="full khusus-produksi"><label>JO produksi *</label>
+                    ${joBisa.length ? `<div class="checks">${joBisa.map((j) => `<label><input type="checkbox" name="no_jo" value="${esc(j.no_jo)}" ${joSekarang.includes(j.no_jo) ? 'checked' : ''}>
+                        <span><b>${esc(j.no_jo)}</b> · ${esc(j.produk || '-')} · qty ${esc(j.qtyjo ?? 0)} <span class="badge b-${esc(j.status_jo)}">${esc(j.status_jo)}</span></span></label>`).join('')}</div>`
+                    : '<p class="muted">Belum ada JO. Tambahkan JO di bagian bawah.</p>'}
+                </div>
+                <div class="full"><button class="btn btn-primary" type="submit">Simpan operator</button></div>
+            </form>`;
+    }
+
+    function aturKhususProduksi() {
+        const produksi = $('#pilih-jenis').value === 'OPERATOR';
+        document.querySelectorAll('#form-operator .khusus-produksi').forEach((el) => { el.style.display = produksi ? '' : 'none'; });
+    }
+
+    function kunciPanel(m) {
+        return [m.status_tampilan, m.active_history?.id_history, m.pending_history?.id_history].join('|');
+    }
+
     function renderRun() {
         const m = mesinAktif();
         if (!m) return;
+        state.kunciPanel = kunciPanel(m);
         const h = m.active_history;
-        const sedangJalan = h || m.status_mesin === STATUS_NYALA || m.status_mesin === 'MAINTANCE';
+        const p = m.pending_history;
+        let info;
 
-        if (sedangJalan) {
-            const joJalan = h ? h.no_jo : m.running_jo;
-            $('#sec-run').innerHTML = `<h4>Sedang berjalan</h4>
+        if (h) {
+            info = `<h4>Operator mesin · ${esc(m.status_tampilan)}</h4>
                 <dl class="kv">
-                    <dt>Jenis</dt><dd>${esc(h?.jenis_operator || '-')}</dd>
-                    <dt>Operator</dt><dd>${esc(operatorDari(h) || 'Tanpa data operator')}</dd>
-                    <dt>Shift</dt><dd>${esc(h?.shift || '-')}</dd>
-                    <dt>JO</dt><dd>${esc(joJalan.join(', ') || '-')}</dd>
-                    <dt>Mulai</dt><dd>${jamLokal(h?.mesin_start)}</dd>
+                    <dt>Jenis</dt><dd>${esc(h.jenis_operator || '-')}</dd>
+                    <dt>Nama</dt><dd>${esc(operatorDari(h) || '-')}</dd>
+                    <dt>Shift</dt><dd>${esc(h.shift || '-')}</dd>
+                    <dt>JO</dt><dd>${esc(h.no_jo.join(', ') || '-')}</dd>
+                    <dt>Mulai</dt><dd>${jamLokal(h.mesin_start)}</dd>
                     <dt>Durasi</dt><dd class="timer" data-sejak="${Date.now() / 1000 - m.timer_sec}">${durasi(m.timer_sec)}</dd>
                 </dl>
-                <form id="form-stop" class="form-grid">
-                    <div><label>Good</label><input name="good" type="number" min="0" step="any" placeholder="${esc(h?.good ?? 0)}"></div>
-                    <div><label>NG</label><input name="ng" type="number" min="0" step="any" placeholder="${esc(h?.ng ?? 0)}"></div>
-                    <div class="full"><label>Remark</label><textarea name="remark" rows="2"></textarea></div>
-                    ${joJalan.length ? `<div class="full"><label>Tandai JO selesai (FINISH)</label><div class="checks">
-                        ${joJalan.map((j) => `<label><input type="checkbox" name="jo_selesai" value="${esc(j)}"> ${esc(j)}</label>`).join('')}
-                    </div></div>` : ''}
-                    <div class="full"><button class="btn btn-stop" type="submit">Hentikan mesin</button></div>
-                </form>
-                <div class="msg" id="msg-run"></div>`;
-            $('#form-stop').addEventListener('submit', submitStop);
-            return;
+                <div class="hint">Status diubah dari ESP. STOP: pilih lagi <b>${esc(TAHAP[h.jenis_operator] || 'PRODUKSI')}</b> yang sedang [AKTIF] (kembali READY).</div>`;
+        } else if (p) {
+            info = `<h4>Operator mesin · READY</h4>
+                <dl class="kv">
+                    <dt>Jenis</dt><dd>${esc(p.jenis_operator || '-')}</dd>
+                    <dt>Nama</dt><dd>${esc(operatorDari(p) || '-')}</dd>
+                    <dt>Shift</dt><dd>${esc(p.shift || '-')}</dd>
+                    <dt>JO</dt><dd>${esc(p.no_jo.join(', ') || '-')}</dd>
+                </dl>
+                <div class="hint">Di ESP: pilih <b>[ Refresh Data ]</b>, lalu <b>${esc(TAHAP[p.jenis_operator] || 'PRODUKSI')}</b> untuk mulai.</div>
+                <button class="btn btn-stop" type="button" id="btn-batal-siap">Lepas operator</button>`;
+        } else {
+            info = `<h4>Operator mesin · ${esc(m.status_tampilan)}</h4>
+                <div class="hint">Belum ada operator. ESP menampilkan "Ready belum running" dan semua status terkunci (NO OP).</div>`;
         }
 
-        const joBisa = state.jo.filter((j) => j.status_jo !== 'FINISH' && j.status_jo !== 'RUNNING');
-        $('#sec-run').innerHTML = `<h4>Jalankan mesin</h4>
-            <form id="form-start" class="form-grid">
-                <div><label>Jenis</label><select name="jenis_operator">
-                    <option value="OPERATOR">Operator (produksi)</option>
-                    <option value="TEKNISI">Teknisi (maintenance)</option>
-                    <option value="SETUP">Setup</option>
-                </select></div>
-                <div><label>Shift</label><select name="shift">
-                    ${['1', '2', '3'].map((s) => `<option ${s === shiftSekarang() ? 'selected' : ''}>${s}</option>`).join('')}
-                </select></div>
-                <div><label>Nama yang menjalankan *</label><input name="operator1" list="dl-operator" required autocomplete="off"></div>
-                <div><label>Operator 2 (opsional)</label><input name="operator2" list="dl-operator" autocomplete="off"></div>
-                <div class="full"><label>Pilih JO yang dikerjakan *</label>
-                    ${joBisa.length ? `<div class="checks">${joBisa.map((j) => `<label><input type="checkbox" name="no_jo" value="${esc(j.no_jo)}">
-                        <span><b>${esc(j.no_jo)}</b> · ${esc(j.produk || '-')} · qty ${esc(j.qtyjo ?? 0)} <span class="badge b-${esc(j.status_jo)}">${esc(j.status_jo)}</span></span></label>`).join('')}</div>`
-                    : '<p class="muted">Belum ada JO yang bisa dijalankan. Tambahkan JO di bagian bawah.</p>'}
-                </div>
-                <div class="full"><button class="btn btn-run" type="submit" ${joBisa.length ? '' : 'disabled'}>Jalankan mesin</button></div>
-            </form>
-            <div class="msg" id="msg-run"></div>
-            <div style="margin-top:12px"><label>Ubah status tanpa menjalankan</label>
-                <select id="ubah-status">
-                    ${['READY', 'OFF', 'RUSAK'].map((s) => `<option ${s === m.status_mesin ? 'selected' : ''}>${s}</option>`).join('')}
-                </select></div>`;
-        $('#form-start').addEventListener('submit', submitStart);
-        $('#ubah-status').addEventListener('change', async (e) => {
-            try {
-                await api(`/mesin/${enc(state.aktif)}/status`, 'PUT', { status: e.target.value });
-                await muatMesin();
-                renderRun();
-            } catch (err) {
-                tampilPesan($('#msg-run'), err.message);
-            }
-        });
+        $('#sec-run').innerHTML = info + formOperator(m) + '<div class="msg" id="msg-run"></div>';
+        $('#btn-batal-siap')?.addEventListener('click', batalSiapkan);
+        $('#form-operator').addEventListener('submit', submitOperator);
+        $('#pilih-jenis').addEventListener('change', aturKhususProduksi);
+        aturKhususProduksi();
     }
 
     function renderJo() {
@@ -341,29 +389,35 @@
         document.querySelectorAll('.jo-hapus').forEach((el) => el.addEventListener('click', () => hapusJo(el.dataset.jo)));
     }
 
-    async function submitStart(e) {
+    async function submitOperator(e) {
         e.preventDefault();
         const f = new FormData(e.target);
+        const produksi = f.get('jenis_operator') === 'OPERATOR';
         const body = {
             jenis_operator: f.get('jenis_operator'),
             shift: f.get('shift'),
             operator1: f.get('operator1').trim(),
-            operator2: f.get('operator2').trim() || null,
-            no_jo: f.getAll('no_jo'),
+            operator2: produksi ? (f.get('operator2') || '').trim() || null : null,
+            no_jo: produksi ? f.getAll('no_jo') : [],
         };
-        if (!body.no_jo.length) {
-            return tampilPesan($('#msg-run'), 'Pilih minimal satu JO.');
+        if (produksi && !body.no_jo.length) {
+            return tampilPesan($('#msg-run'), 'Pilih JO untuk produksi.');
         }
-        await kirim(e.target, '#msg-run', () => api(`/mesin/${enc(state.aktif)}/start`, 'POST', body));
+        await kirim(e.target, '#msg-run', () => api(`/mesin/${enc(state.aktif)}/ganti-operator`, 'POST', body));
     }
 
-    async function submitStop(e) {
-        e.preventDefault();
-        if (!confirm(`Hentikan mesin ${state.aktif}?`)) return;
-        const f = new FormData(e.target);
-        const angka = (k) => f.get(k) === '' ? null : Number(f.get(k));
-        const body = { good: angka('good'), ng: angka('ng'), remark: f.get('remark') || null, jo_selesai: f.getAll('jo_selesai') };
-        await kirim(e.target, '#msg-run', () => api(`/mesin/${enc(state.aktif)}/stop`, 'POST', body));
+    async function batalSiapkan(e) {
+        if (!confirm(`Batalkan operator mesin ${state.aktif}?`)) return;
+        e.target.disabled = true;
+        try {
+            const res = await api(`/mesin/${enc(state.aktif)}/siapkan`, 'DELETE');
+            await muatMesin();
+            renderRun();
+            tampilPesan($('#msg-run'), res.message || 'Operator dibatalkan', true);
+        } catch (err) {
+            tampilPesan($('#msg-run'), err.message);
+            e.target.disabled = false;
+        }
     }
 
     async function submitJo(e) {

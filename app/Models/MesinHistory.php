@@ -24,7 +24,17 @@ class MesinHistory extends Model
 
     protected $primaryKey = 'id_history';
 
-    protected $guarded = ['id_history'];
+    /**
+     * Pakai $fillable, bukan $guarded: $guarded membuat Laravel membaca information_schema
+     * (kolom generation_expression) yang tidak ada di MySQL 5.5 server produksi.
+     */
+    protected $fillable = [
+        'no_mesin', 'tgl_running', 'jenis_operator', 'shift', 'operator1', 'operator2', 'nama_teksini', 'nama_setup',
+        'no_jo', 'mesin_start', 'mesin_stop', 'mesin_durasi', 'start_produksi', 'stop_produksi', 'start_mold',
+        'stop_mold', 'start_setup', 'stop_setup', 'good', 'ng', 'sisa_jo', 'runner',
+        'ITEM1', 'ITEM2', 'ITEM3', 'ITEM4', 'ITEM5', 'ITEM6', 'ITEM7', 'ITEM8', 'ITEM9', 'ITEM10',
+        'actual_cycletime', 'actual_berat', 'remark', 'status_proses', 'user_at',
+    ];
 
     protected function casts(): array
     {
@@ -55,6 +65,33 @@ class MesinHistory extends Model
     public function troubleLogs(): HasMany
     {
         return $this->hasMany(MesinTroubleLog::class, 'id_history', 'id_history');
+    }
+
+    /**
+     * Status yang tampil & dikirim ESP32 per jenis_operator (lihat listStatus di test.ino).
+     */
+    public const STATUS_ESP = [
+        'OPERATOR' => 'PRODUKSI',
+        'TEKNISI' => 'MOULD',
+        'SETUP' => 'SETTER',
+    ];
+
+    public function statusEsp(): string
+    {
+        return self::STATUS_ESP[$this->jenis_operator] ?? 'PRODUKSI';
+    }
+
+    /**
+     * Tahap kerja sesuai jenis_operator, dipakai untuk kolom start_* / stop_*:
+     * OPERATOR = produksi, TEKNISI = mold, SETUP = setup (setter).
+     */
+    public function tahap(): string
+    {
+        return match ($this->jenis_operator) {
+            'TEKNISI' => 'mold',
+            'SETUP' => 'setup',
+            default => 'produksi',
+        };
     }
 
     /**

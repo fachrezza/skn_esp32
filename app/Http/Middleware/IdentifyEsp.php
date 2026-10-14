@@ -19,7 +19,7 @@ class IdentifyEsp
         $uid = trim((string) ($request->header('X-ESP-ID') ?? $request->input('id_esp')));
 
         $mesin = $uid !== ''
-            ? MesinQr::with('activeHistory')->where('uid_esp', $uid)->first()
+            ? MesinQr::with(['activeHistory', 'pendingHistory'])->where('uid_esp', $uid)->first()
             : null;
 
         if (! $mesin) {

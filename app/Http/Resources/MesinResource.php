@@ -24,13 +24,20 @@ class MesinResource extends JsonResource
             'image_qr' => $this->image_qr,
             'uid_esp' => $this->uid_esp,
             'status_mesin' => $this->status_mesin?->value,
+            'status_tampilan' => $this->statusTampilan(),
             'is_running' => $this->isRunning(),
+            'siap_running' => $this->isSiapRunning(),
+            'operator' => $this->namaOperator(),
             'running_jo' => $this->runningJoList(),
             'timer_sec' => $this->durasiStatus(),
             'updated_at' => $this->updated_at?->toDateTimeString(),
             'active_history' => $this->whenLoaded(
                 'activeHistory',
                 fn () => $this->activeHistory ? new HistoryResource($this->activeHistory) : null,
+            ),
+            'pending_history' => $this->whenLoaded(
+                'pendingHistory',
+                fn () => $this->pendingHistory ? new HistoryResource($this->pendingHistory) : null,
             ),
         ];
     }

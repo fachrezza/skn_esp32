@@ -49,11 +49,22 @@ class MesinApiTest extends TestCase
     public function test_on_off_and_toggle_change_status_mesin(): void
     {
         MesinQr::factory()->create(['no_mesin' => '300']);
+        MesinHistory::factory()->running()->create(['no_mesin' => '300']);
 
         $this->postJson('/api/mesin/300/on')->assertOk()->assertJsonPath('mesin.status_mesin', 'RUNNING');
         $this->postJson('/api/mesin/300/on')->assertStatus(409);
         $this->postJson('/api/mesin/300/off')->assertOk()->assertJsonPath('mesin.status_mesin', 'OFF');
         $this->postJson('/api/mesin/300/toggle')->assertOk()->assertJsonPath('mesin.status_mesin', 'RUNNING');
+    }
+
+    public function test_running_is_rejected_without_operator(): void
+    {
+        MesinQr::factory()->create(['no_mesin' => '300']);
+
+        $this->postJson('/api/mesin/300/on')->assertStatus(409);
+        $this->putJson('/api/mesin/300/status', ['status' => 'RUNNING'])->assertStatus(409);
+
+        $this->assertSame(StatusMesin::Ready, MesinQr::find('300')->status_mesin);
     }
 
     public function test_update_status_validates_enum(): void

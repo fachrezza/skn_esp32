@@ -26,7 +26,7 @@ class KontrolMesinController extends Controller
             'q' => ['nullable', 'string', 'max:100'],
         ]);
 
-        $mesin = MesinQr::with('activeHistory')
+        $mesin = MesinQr::with(['activeHistory', 'pendingHistory'])
             ->when($validated['status'] ?? null, fn ($query, $status) => $query->where('status_mesin', $status))
             ->when($validated['q'] ?? null, fn ($query, $q) => $query->where(function ($query) use ($q) {
                 $query->where('no_mesin', 'like', "%$q%")->orWhere('nama_mesin', 'like', "%$q%");
@@ -46,7 +46,7 @@ class KontrolMesinController extends Controller
      */
     public function show(MesinQr $mesin): MesinResource
     {
-        return (new MesinResource($mesin->load('activeHistory')))->additional(['success' => true]);
+        return (new MesinResource($mesin->load(['activeHistory', 'pendingHistory'])))->additional(['success' => true]);
     }
 
     /**
@@ -117,7 +117,7 @@ class KontrolMesinController extends Controller
             'message' => $mesin->uid_esp
                 ? "ESP {$mesin->uid_esp} dipetakan ke {$mesin->namaUntukTampilan()}"
                 : "ESP dilepas dari {$mesin->namaUntukTampilan()}",
-            'mesin' => new MesinResource($mesin->load('activeHistory')),
+            'mesin' => new MesinResource($mesin->load(['activeHistory', 'pendingHistory'])),
         ]);
     }
 
@@ -154,7 +154,13 @@ class KontrolMesinController extends Controller
 
     private function ubahStatus(MesinQr $mesin, StatusMesin $statusBaru): JsonResponse
     {
-        if ($mesin->status_mesin !== $statusBaru) {
+        if ($statusBaru === StatusMesin::Running) {
+            if (! $mesin->jalankan('api')) {
+                return $this->error("Mesin {$mesin->no_mesin} belum punya operator, siapkan operator dulu", 409, $mesin);
+            }
+
+            $statusBaru = $mesin->status_mesin;
+        } elseif ($mesin->status_mesin !== $statusBaru) {
             $mesin->update([
                 'status_mesin' => $statusBaru,
                 'user_at' => 'api',
@@ -164,7 +170,7 @@ class KontrolMesinController extends Controller
         return response()->json([
             'success' => true,
             'message' => "{$mesin->namaUntukTampilan()} sekarang {$statusBaru->value}",
-            'mesin' => new MesinResource($mesin->load('activeHistory')),
+            'mesin' => new MesinResource($mesin->load(['activeHistory', 'pendingHistory'])),
         ]);
     }
 
@@ -173,7 +179,7 @@ class KontrolMesinController extends Controller
         return response()->json([
             'success' => false,
             'message' => $message,
-            'mesin' => new MesinResource($mesin->load('activeHistory')),
+            'mesin' => new MesinResource($mesin->load(['activeHistory', 'pendingHistory'])),
         ], $code);
     }
 }
